@@ -88,7 +88,7 @@ python scripts/predict_test.py runs/splice/weights/best.pt data/images/val --con
 이 저장소는 공개라 **GitHub Actions 의 Linux 러너가 무료**이므로 거기서 돌린다.
 
 ```bash
-copy runs\splice\weightsest.pt modelsest.pt
+copy runs\splice\weights\best.pt models\best.pt
 git add models/best.pt && git commit -m "weights" && git push
 
 gh workflow run coreml.yml -f weights=models/best.pt -f imgsz=640
