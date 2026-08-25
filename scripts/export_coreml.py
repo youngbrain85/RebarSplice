@@ -68,7 +68,11 @@ def main() -> None:
 
     w = Path(a.weights)
     if not w.is_file():
-        raise SystemExit(f"가중치가 없다: {w}")
+        # 사전학습 이름(yolo11n.pt 등)이면 Ultralytics 가 받아온다 — 변환 경로 점검용
+        import re
+        if not re.fullmatch(r"yolo[0-9v]+[nsmlx](-[a-z]+)?\.pt", w.name):
+            raise SystemExit(f"가중치가 없다: {w}")
+        print(f"(사전학습 가중치로 본다: {w.name})")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     model = YOLO(str(w))

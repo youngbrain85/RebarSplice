@@ -50,13 +50,19 @@ jobs:
         run: |
           set -euo pipefail
           W="${{ inputs.weights }}"
-          if [ ! -f "$W" ]; then
+          if [ -f "$W" ]; then
+            ls -lh "$W"
+          elif [[ "$W" =~ ^yolo[0-9v]+[nsmlx](-[a-z]+)?\.pt$ ]]; then
+            # 사전학습 가중치 이름이면 Ultralytics 가 알아서 받는다.
+            # 학습 없이 변환 경로만 점검할 때 쓴다 (예: yolo11n.pt).
+            echo "사전학습 가중치로 본다: $W (자동 다운로드)"
+          else
             echo "::error::가중치가 저장소에 없다: $W"
             echo "학습 후 models/ 로 복사해 커밋했는지 확인하라:"
             echo "  copy runs\\splice\\weights\\best.pt models\\best.pt"
+            echo "또는 사전학습 이름을 그대로 넣어라 (yolo11n.pt 등)"
             exit 1
           fi
-          ls -lh "$W"
 
       - name: 의존성 설치
         run: |
