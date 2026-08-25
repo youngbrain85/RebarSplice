@@ -1,7 +1,9 @@
 # 학습 산출물
 runs/
 *.pt
-!yolo*.pt.placeholder
+# 단 models/ 안의 가중치는 커밋한다 — CoreML 변환 워크플로가 저장소에서 읽어간다.
+# 5MB 안팎이라 git 에 넣어도 무겁지 않다.
+!models/*.pt
 
 # 변환 산출물 — 용량이 크다. 릴리스로 배포한다
 models/*.mlpackage/

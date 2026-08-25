@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """학습된 가중치 -> Core ML (.mlpackage) 변환.
 
+★ **Windows 에서는 안 된다.** Ultralytics 가 `assert not WINDOWS` 로 막는다.
+   macOS / Linux / WSL 에서 돌리거나, `.github/workflows/coreml.yml` 을 쓴다
+   (공개 저장소라 Linux 러너가 무료다).
+
 사용:
     python scripts/export_coreml.py runs/splice/weights/best.pt
     python scripts/export_coreml.py best.pt --int8        # 크기·속도 우선
@@ -10,8 +14,9 @@
 
 **nms**: NMS(중복 박스 제거)를 Core ML 그래프 안에 넣는다. 안 넣으면 Swift 쪽에서
 직접 구현해야 하고, 좌표계 변환에서 실수가 잘 난다. 넣는 쪽이 압도적으로 낫다.
-단 YOLO26 계열은 애초에 NMS-free 라 이 인자가 무시되거나 거부될 수 있다 —
-그래서 실패하면 자동으로 빼고 재시도한다.
+단 YOLO26 계열은 애초에 NMS-free(end2end) 라 Ultralytics 가 경고와 함께 자동으로 끈다:
+`WARNING 'nms=True' is not available for end2end models. Forcing 'nms=False'.`
+그 경우 Swift 쪽에서 NMS 를 따로 할 필요가 없다 — 모델이 이미 최종 박스를 낸다.
 
 **imgsz**: 학습 때와 같은 값을 써야 한다. 다르면 정확도가 떨어진다.
 
@@ -35,6 +40,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import argparse
+import platform
 import shutil
 from pathlib import Path
 
@@ -67,22 +73,32 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     model = YOLO(str(w))
 
-    kwargs = dict(format="coreml", imgsz=a.imgsz, int8=a.int8)
+    kwargs = dict(format="coreml", imgsz=a.imgsz, quantize=8 if a.int8 else 16)
     if not a.no_nms:
         kwargs["nms"] = True
 
     print(f"변환: {w}")
     print(f"설정: imgsz={a.imgsz}  양자화={'INT8' if a.int8 else 'FP16'}  nms={not a.no_nms}\n")
 
-    try:
-        out = model.export(**kwargs)
-    except TypeError as e:
-        # YOLO26 계열은 NMS-free 라 nms 인자를 안 받을 수 있다
-        if "nms" not in kwargs:
-            raise
-        print(f"nms 인자가 거부됐다 ({e}). NMS-free 모델로 보고 빼고 재시도한다.\n")
-        kwargs.pop("nms")
-        out = model.export(**kwargs)
+    if platform.system() == "Windows":
+        raise SystemExit(
+            "Core ML 변환은 Windows 에서 안 된다 — Ultralytics 가 assert 로 막는다.\n\n"
+            "이 저장소는 공개라 GitHub Actions 의 Linux 러너가 무료다. 그걸 쓴다:\n\n"
+            "  1) 가중치를 models/ 로 복사하고 커밋\n"
+            "       copy runs\\splice\\weights\\best.pt models\\best.pt\n"
+            "       git add models/best.pt && git commit -m weights && git push\n\n"
+            "  2) 변환 워크플로 실행\n"
+            "       gh workflow run coreml.yml -f weights=models/best.pt -f imgsz=640\n\n"
+            "  3) 끝나면 .mlpackage 를 아티팩트로 내려받기\n"
+            "       gh run download <run-id>\n\n"
+            "(맥이나 WSL 이 있으면 거기서 이 스크립트를 그대로 돌려도 된다)"
+        )
+
+    # YOLO26 같은 end2end 모델은 애초에 NMS 가 없다. Ultralytics 가 nms=True 를
+    # 경고와 함께 자동으로 끄므로 우리가 예외 처리할 필요는 없다:
+    #   WARNING 'nms=True' is not available for end2end models. Forcing 'nms=False'.
+    # 그 경우 Swift 쪽에서 NMS 를 따로 할 필요도 없다 — 모델이 최종 박스를 낸다.
+    out = model.export(**kwargs)
 
     out = Path(out)
     stem = a.name or w.stem

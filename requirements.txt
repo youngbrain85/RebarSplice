@@ -1,10 +1,17 @@
 # 학습·변환용. iOS 앱 쪽은 별도다.
 #
-# ultralytics 가 torch 를 끌고 온다. GPU 를 쓰려면 먼저 CUDA 빌드를 설치할 것:
-#   https://pytorch.org/get-started/locally/
+# ── GPU (권장) ───────────────────────────────────────────────
+# torch 는 CUDA 빌드를 먼저 따로 설치해야 한다. 이 인덱스를 안 쓰면 CPU 버전이 깔린다.
 #
-# coremltools 는 Python 3.9~3.12 를 요구한다. 이 머신은 3.9.12 로 하한이라,
-# 문제가 생기면 3.11 로 올리는 것을 권한다.
+#   python -m venv .venv
+#   .venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#   .venv\Scripts\python -m pip install -r requirements.txt
+#
+# 확인:  python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+#
+# ── 참고 ─────────────────────────────────────────────────────
+# coremltools 는 Python 3.9~3.12 를 요구한다. 3.9 는 하한이라 문제가 생기면 3.11 로 올릴 것.
+# Core ML 변환 자체는 Windows 에서 되지만, 변환된 모델을 *실행*해 보려면 macOS 가 필요하다.
 
 ultralytics>=8.3.0
 coremltools>=8.0

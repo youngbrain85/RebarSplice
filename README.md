@@ -58,11 +58,20 @@ python scripts/check_dataset.py data/dataset.yaml
 ### 4. 학습한다
 
 ```bash
-pip install -r requirements.txt
-python scripts/train.py
+python -m venv .venv
+.venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+.venv\Scripts\python -m pip install -r requirements.txt
+
+.venv\Scripts\python scripts/train.py
 ```
 
 100장 규모에 맞춰 기본값을 잡아 뒀다 — 긴 epoch + 조기종료, 강한 증강, 작은 배치.
+
+**GPU 를 쓰는지 먼저 확인하라.** 안 쓰면 100장에도 몇 시간이 걸린다:
+
+```bash
+.venv\Scripts\python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
 
 ### 5. 결과를 눈으로 본다
 
@@ -75,13 +84,29 @@ python scripts/predict_test.py runs/splice/weights/best.pt data/images/val --con
 
 ### 6. Core ML 로 바꾼다
 
+**★ Windows 에서는 안 된다.** Ultralytics 가 `assert not WINDOWS` 로 막는다(실측 확인).
+이 저장소는 공개라 **GitHub Actions 의 Linux 러너가 무료**이므로 거기서 돌린다.
+
 ```bash
-python scripts/export_coreml.py runs/splice/weights/best.pt
-python scripts/export_coreml.py runs/splice/weights/best.pt --int8   # 비교용
+copy runs\splice\weightsest.pt modelsest.pt
+git add models/best.pt && git commit -m "weights" && git push
+
+gh workflow run coreml.yml -f weights=models/best.pt -f imgsz=640
+gh run download <run-id>          # .mlpackage 를 아티팩트로
+```
+
+맥이나 WSL 이 있으면 로컬에서 그대로 돌려도 된다:
+
+```bash
+python scripts/export_coreml.py models/best.pt --imgsz 640
+python scripts/export_coreml.py models/best.pt --imgsz 640 --int8   # 비교용
 ```
 
 변환 후 **Xcode 에서 .mlpackage 를 열고 Performance 탭**을 확인한다.
 CPU 로 떨어지는 레이어가 있으면 ARKit 과 같이 못 쓴다.
+
+**YOLO26 은 NMS-free 다.** 변환 시 `nms=True` 가 자동으로 꺼지는데 정상이다 —
+모델이 이미 최종 박스를 내므로 Swift 쪽에서 NMS 를 따로 구현할 필요가 없다.
 
 ---
 

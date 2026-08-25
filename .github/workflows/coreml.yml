@@ -1,0 +1,98 @@
+# Core ML 변환 — Linux 러너에서 돈다.
+#
+# 왜 CI 인가: Ultralytics 는 `assert not WINDOWS` 로 Core ML 변환을 막는다.
+# 개발 머신이 Windows 라 로컬에서는 불가능하다. 이 저장소는 **공개**라
+# GitHub Actions 러너가 무료이므로 여기서 돌리는 게 가장 싸다.
+#
+# 학습은 로컬 GPU 에서, 변환만 여기서 — 무료 러너에는 GPU 가 없다.
+#
+# 사용:
+#   copy runs\splice\weights\best.pt models\best.pt
+#   git add models/best.pt && git commit -m "weights" && git push
+#   gh workflow run coreml.yml -f weights=models/best.pt -f imgsz=640
+#   gh run download <run-id>
+
+name: CoreML Export
+
+on:
+  workflow_dispatch:
+    inputs:
+      weights:
+        description: "저장소 안의 .pt 경로"
+        required: true
+        default: "models/best.pt"
+        type: string
+      imgsz:
+        description: "입력 크기 — 학습 때와 같은 값을 써야 한다"
+        required: true
+        default: "640"
+        type: string
+      quantize:
+        description: "양자화"
+        required: true
+        default: "both"
+        type: choice
+        options: ["fp16", "int8", "both"]
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # coremltools 는 3.9~3.12. 3.11 이 가장 안전하다
+
+      - name: 가중치 확인
+        run: |
+          set -euo pipefail
+          W="${{ inputs.weights }}"
+          if [ ! -f "$W" ]; then
+            echo "::error::가중치가 저장소에 없다: $W"
+            echo "학습 후 models/ 로 복사해 커밋했는지 확인하라:"
+            echo "  copy runs\\splice\\weights\\best.pt models\\best.pt"
+            exit 1
+          fi
+          ls -lh "$W"
+
+      - name: 의존성 설치
+        run: |
+          set -euo pipefail
+          # 변환에는 GPU 가 필요 없다. CPU 전용 torch 로 설치 시간을 크게 줄인다.
+          pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet ultralytics coremltools
+          python -c "import ultralytics, coremltools, torch; \
+            print('ultralytics', ultralytics.__version__); \
+            print('coremltools', coremltools.__version__); \
+            print('torch', torch.__version__)"
+
+      - name: 변환
+        run: |
+          set -euo pipefail
+          Q="${{ inputs.quantize }}"
+          run_one() {
+            echo "::group::$1 변환"
+            python scripts/export_coreml.py "${{ inputs.weights }}" --imgsz "${{ inputs.imgsz }}" $2
+            echo "::endgroup::"
+          }
+          if [ "$Q" = "both" ]; then
+            run_one FP16 ""
+            run_one INT8 "--int8"
+          elif [ "$Q" = "int8" ]; then
+            run_one INT8 "--int8"
+          else
+            run_one FP16 ""
+          fi
+          echo "산출물:"
+          ls -la models/
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: coreml-${{ inputs.quantize }}-imgsz${{ inputs.imgsz }}
+          path: models/*.mlpackage
+          if-no-files-found: error
+          retention-days: 30
