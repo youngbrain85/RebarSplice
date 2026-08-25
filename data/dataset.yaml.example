@@ -1,0 +1,24 @@
+# Ultralytics 데이터셋 설정. 이 파일을 dataset.yaml 로 복사해서 쓴다.
+#
+# Roboflow 에서 "YOLOv8" 포맷으로 내보내면 이 파일이 같이 나온다.
+# 그 경우 path 만 맞춰주면 된다.
+
+path: .            # 이 파일 기준 상대경로 (data/ 폴더)
+train: images/train
+val: images/val
+
+names:
+  0: lap_splice
+
+# 폴더 구조:
+#   data/
+#     images/train/siteA_001.jpg ...
+#     images/val/siteC_001.jpg ...
+#     labels/train/siteA_001.txt ...
+#     labels/val/siteC_001.txt ...
+#
+# ★ 파일명 앞에 촬영 장소를 붙여라 (siteA_, siteB_ ...).
+#   check_dataset.py 가 이걸로 학습/검증 누수를 검사한다.
+#
+# ★ 네거티브(이음 없는) 사진은 .txt 를 빈 파일로 두거나 아예 만들지 않는다.
+#   사진 자체는 반드시 포함한다.

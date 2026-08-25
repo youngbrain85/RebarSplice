@@ -1,0 +1,25 @@
+# 학습 산출물
+runs/
+*.pt
+!yolo*.pt.placeholder
+
+# 변환 산출물 — 용량이 크다. 릴리스로 배포한다
+models/*.mlpackage/
+models/*.mlmodel
+
+# 데이터셋 — 현장 사진은 커밋하지 않는다
+data/images/
+data/labels/
+data/dataset.yaml
+data/*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
