@@ -43,8 +43,23 @@ HuggingFace · AI-Hub 를 전수 검색한 결과 0건이다(2026-08 확인). �
 **이음이 없는 사진을 20~30% 섞어 박스 0개로 넣는다.** 안 넣으면 모델이
 "철근이 보이면 이음"으로 학습한다 — 이 도메인 최빈 실패다.
 
-내보내기는 **YOLOv8 포맷**. 압축을 `data/` 에 풀고 `dataset.yaml` 을 맞춘다
-(`data/dataset.yaml.example` 참고).
+내보내기는 **YOLOv8 포맷**을 고른다. 이건 모델 버전이 아니라 **데이터셋 형식** 이름이다 —
+Ultralytics 는 v5 부터 v26 까지 라벨 형식이 같으므로 YOLOv8 로 내보내도 YOLO26 학습에
+그대로 쓴다. (Roboflow 에 v11 / v12 옵션이 있어도 나오는 파일은 동일하다.)
+
+압축을 `data/` 에 푼 뒤 **`data.yaml` 의 경로를 반드시 고친다.** Roboflow 는
+`train: ../train/images` 처럼 `../` 로 시작하는 경로를 주는데(YOLOv5 시절 관례) 그대로 두면
+학습이 실패한다. 이렇게 바꾼다:
+
+```yaml
+path: D:/Projects/RebarSplice/data      # 압축을 푼 곳의 절대경로
+train: train/images
+val: valid/images
+names:
+  0: lap_splice
+```
+
+`check_dataset.py` 가 이걸 자동으로 잡아내고 고쳐야 할 내용을 절대경로까지 채워서 알려준다.
 
 ### 3. 데이터를 검사한다
 

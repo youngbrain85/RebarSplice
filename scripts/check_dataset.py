@@ -58,6 +58,27 @@ def session_of(img: Path) -> str | None:
     return None
 
 
+def resolve_split(root: Path, cfg_path: Path, rel: str) -> Path | None:
+    """split 경로를 여러 관례로 시도한다. 못 찾으면 None.
+
+    Roboflow 내보내기는 `train: ../train/images` 처럼 `../` 로 시작하는 경로를 준다
+    (YOLOv5 시절 관례). 그걸 그대로 풀면 데이터셋 폴더 **밖**을 가리킨다.
+    사용자가 yaml 을 손보게 하는 대신 여기서 알아서 찾는다.
+    """
+    base = cfg_path.parent
+    stripped = rel.lstrip("./").lstrip("../") if rel.startswith(("./", "../")) else rel
+    for cand in (
+        Path(rel) if Path(rel).is_absolute() else None,  # 절대경로
+        root / rel,                                       # Ultralytics 관례
+        base / rel,                                       # yaml 옆
+        base / stripped,                                  # Roboflow 의 ../ 를 떼고
+        root / stripped,
+    ):
+        if cand is not None and cand.is_dir():
+            return cand.resolve()
+    return None
+
+
 def scan(split_dir: Path) -> tuple[list[Path], int, int, Counter]:
     """(이미지들, 박스 있는 장수, 박스 총수, 장소별 장수)"""
     imgs = sorted(p for p in split_dir.rglob("*") if p.suffix.lower() in IMG_EXT)
@@ -97,15 +118,19 @@ def main() -> None:
 
     total_imgs = total_pos = total_boxes = 0
 
+    rewrote: list[str] = []
+
     for split in ("train", "val"):
-        rel = cfg.get(split)
+        rel = cfg.get(split) or (cfg.get("valid") if split == "val" else None)
         if not rel:
             problems.append(f"dataset.yaml 에 '{split}' 항목이 없다")
             continue
-        d = root / rel
-        if not d.is_dir():
-            problems.append(f"{split} 경로가 없다: {d}")
+        d = resolve_split(root, cfg_path, str(rel))
+        if d is None:
+            problems.append(f"{split} 경로가 없다: {root / rel}")
             continue
+        if d != (root / rel):
+            rewrote.append(split)
 
         imgs, pos, boxes, sessions = scan(d)
         neg = len(imgs) - pos
@@ -159,6 +184,19 @@ def main() -> None:
                 "같은 이음부를 찍은 사진이 양쪽에 들어가면 검증 점수가 가짜로 높게 나온다 — "
                 "장소 단위로 나눠라"
             )
+
+    # --- 0. yaml 경로 관례 (Roboflow 내보내기) ---
+    if rewrote:
+        problems.append(
+            f"dataset.yaml 의 경로가 Roboflow 관례({', '.join(rewrote)}: '../...')다. "
+            "이 스크립트는 알아서 찾았지만 **학습은 실패할 수 있다** — Ultralytics 는 같은 폴백을 "
+            "하지 않는다. yaml 을 아래처럼 고쳐라:\n"
+            f"      path: {root}\n"
+            "      train: train/images\n"
+            "      val: valid/images\n"
+            "      names:\n"
+            "        0: lap_splice"
+        )
 
     # --- 결과 ---
     print("=" * 60)
