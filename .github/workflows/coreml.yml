@@ -70,10 +70,19 @@ jobs:
           # 변환에는 GPU 가 필요 없다. CPU 전용 torch 로 설치 시간을 크게 줄인다.
           pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cpu
           pip install --quiet ultralytics coremltools
-          python -c "import ultralytics, coremltools, torch; \
+
+          # ★ numpy<2 로 내린다. NumPy 2.0 이 "1차원 배열 -> 파이썬 스칼라" 변환을
+          #   에러로 바꿨는데 coremltools 의 torch 프론트엔드가 그 경로를 쓴다:
+          #     mil/frontend/torch/ops.py _cast() -> mb.const(val=dtype(x.val))
+          #     TypeError: only 0-dimensional arrays can be converted to Python scalars
+          #   yolo11n / yolo26n 둘 다 이걸로 죽는 것을 실측 확인했다 (2026-08-25).
+          pip install --quiet "numpy<2"
+
+          python -c "import ultralytics, coremltools, torch, numpy; \
             print('ultralytics', ultralytics.__version__); \
             print('coremltools', coremltools.__version__); \
-            print('torch', torch.__version__)"
+            print('torch', torch.__version__); \
+            print('numpy', numpy.__version__)"
 
       - name: 변환
         run: |
