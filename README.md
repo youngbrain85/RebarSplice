@@ -1,21 +1,23 @@
 # RebarSplice
 
-철근 **겹침이음(lap splice)** 을 카메라 화면에서 자동 검출하는 iOS 앱과 그 학습 파이프라인.
+철근 **겹침이음(lap splice)** 을 사진에서 자동 검출하는 **웹앱**과 그 학습 파이프라인.
 
-건설현장 배근 검측 용도. 이 저장소는 **학습·변환 쪽**이고, iOS 앱은 모델이 나온 뒤에 붙인다.
+건설현장 배근 검측용. 사진을 올리면 브라우저 안에서 검출이 돌고 박스를 그려 준다.
+실시간 영상이 아니라 **찍어 둔 사진**을 처리한다.
 
 ---
 
 ## 지금 상태
 
-파일럿 단계다. 사진 100장으로 **"이게 될 일인가"** 를 먼저 판단한다.
+**파일럿 검증 단계.** 사진 100장으로 "이게 될 일인가"를 먼저 판단한다.
 
 | | |
 |---|---|
 | 클래스 | `lap_splice` 1개 |
 | 라벨 | 축정렬 바운딩박스 |
+| 모델 | **yolo26s**, 입력 640 |
+| 배포 | 웹앱 — 브라우저에서 추론(ONNX Runtime Web), 서버 없음 |
 | 목표 | mAP50 **0.3~0.5** (100장 기준). 0 에 가까우면 라벨 정의를 다시 본다 |
-| 배포 | TestFlight 전용 (App Store 안 올림) |
 
 **철근 이음부 공개 데이터셋은 존재하지 않는다.** Roboflow Universe · Kaggle ·
 HuggingFace · AI-Hub 를 전수 검색한 결과 0건이다(2026-08 확인). 처음부터 만들어야 한다.
@@ -26,7 +28,7 @@ HuggingFace · AI-Hub 를 전수 검색한 결과 0건이다(2026-08 확인). �
 
 ### 1. 사진을 모은다
 
-`docs/labeling-guide.md` 의 촬영 가이드를 따른다. 요점 하나만 옮기면:
+`docs/labeling-guide.md` 참고. 요점 하나만 옮기면:
 
 > **같은 이음부를 100번 찍으면 100장이 아니라 1장이다.**
 > 서로 다른 이음부를 30개소 이상, 거리·각도·조명을 섞어서.
@@ -36,20 +38,26 @@ HuggingFace · AI-Hub 를 전수 검색한 결과 0건이다(2026-08 확인). �
 
 ### 2. 라벨한다
 
-**Roboflow** 가 가장 빠르다. 규칙은 한 줄이다:
+**Roboflow.** 규칙은 한 줄이다:
 
 > 이음부처럼 보이면 박스를 친다.
 
 **이음이 없는 사진을 20~30% 섞어 박스 0개로 넣는다.** 안 넣으면 모델이
 "철근이 보이면 이음"으로 학습한다 — 이 도메인 최빈 실패다.
 
+**업로드는 원본 해상도 그대로.** 미리 줄이지 마라 — 나중에 다른 입력 크기로
+다시 뽑을 수 있어야 한다. Roboflow 의 Preprocessing 에서 Resize 640 이면 충분하다.
+
+**Roboflow 의 Augmentation 은 끈다.** 학습 스크립트가 이미 증강하므로 이중으로 걸리면
+오히려 나빠진다.
+
 내보내기는 **YOLOv8 포맷**을 고른다. 이건 모델 버전이 아니라 **데이터셋 형식** 이름이다 —
 Ultralytics 는 v5 부터 v26 까지 라벨 형식이 같으므로 YOLOv8 로 내보내도 YOLO26 학습에
-그대로 쓴다. (Roboflow 에 v11 / v12 옵션이 있어도 나오는 파일은 동일하다.)
+그대로 쓴다. (v11 / v12 옵션이 있어도 나오는 파일은 동일하다.)
 
-압축을 `data/` 에 푼 뒤 **`data.yaml` 의 경로를 반드시 고친다.** Roboflow 는
+압축을 `data/` 에 푼 뒤 **`data.yaml` 의 경로를 고친다.** Roboflow 는
 `train: ../train/images` 처럼 `../` 로 시작하는 경로를 주는데(YOLOv5 시절 관례) 그대로 두면
-학습이 실패한다. 이렇게 바꾼다:
+학습이 실패한다:
 
 ```yaml
 path: D:/Projects/RebarSplice/data      # 압축을 푼 곳의 절대경로
@@ -59,12 +67,12 @@ names:
   0: lap_splice
 ```
 
-`check_dataset.py` 가 이걸 자동으로 잡아내고 고쳐야 할 내용을 절대경로까지 채워서 알려준다.
+`check_dataset.py` 가 이걸 자동으로 잡아내고 고칠 내용을 절대경로까지 채워서 알려준다.
 
 ### 3. 데이터를 검사한다
 
 ```bash
-python scripts/check_dataset.py data/dataset.yaml
+.venv\Scripts\python scripts\check_dataset.py data\dataset.yaml
 ```
 
 네거티브 비율 · 촬영 장소 수 · **학습/검증 장소 누수** 를 본다.
@@ -77,10 +85,8 @@ python -m venv .venv
 .venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 .venv\Scripts\python -m pip install -r requirements.txt
 
-.venv\Scripts\python scripts/train.py
+.venv\Scripts\python scripts\train.py
 ```
-
-100장 규모에 맞춰 기본값을 잡아 뒀다 — 긴 epoch + 조기종료, 강한 증강, 작은 배치.
 
 **GPU 를 쓰는지 먼저 확인하라.** 안 쓰면 100장에도 몇 시간이 걸린다:
 
@@ -88,40 +94,73 @@ python -m venv .venv
 .venv\Scripts\python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 ```
 
+파일럿에서는 `n` 과 `s` 를 둘 다 돌려 비교해 볼 만하다 — 몇 분이면 끝난다:
+
+```bash
+.venv\Scripts\python scripts\train.py --model yolo26n.pt --name splice_n
+.venv\Scripts\python scripts\train.py --model yolo26s.pt --name splice_s
+```
+
 ### 5. 결과를 눈으로 본다
 
 ```bash
-python scripts/predict_test.py runs/splice/weights/best.pt data/images/val --conf 0.15
+.venv\Scripts\python scripts\predict_test.py runs\splice\weights\best.pt data\valid\images --conf 0.15
 ```
 
 **숫자보다 이게 중요하다.** 어디서 틀리는지 — 다발철근? 스터럽 교차? 역광? —
 패턴이 보이면 라벨 규칙에 한 줄 추가하고 다음 라운드에 반영한다.
 
-### 6. Core ML 로 바꾼다
-
-**★ Windows 에서는 안 된다.** Ultralytics 가 `assert not WINDOWS` 로 막는다(실측 확인).
-이 저장소는 공개라 **GitHub Actions 의 Linux 러너가 무료**이므로 거기서 돌린다.
+### 6. ONNX 로 바꾼다
 
 ```bash
-copy runs\splice\weights\best.pt models\best.pt
-git add models/best.pt && git commit -m "weights" && git push
-
-gh workflow run coreml.yml -f weights=models/best.pt -f imgsz=640
-gh run download <run-id>          # .mlpackage 를 아티팩트로
+.venv\Scripts\python scripts\export_onnx.py runs\splice\weights\best.pt --imgsz 640
 ```
 
-맥이나 WSL 이 있으면 로컬에서 그대로 돌려도 된다:
+**Windows 에서 그냥 된다** — Core ML 과 달리 CI 가 필요 없다(실측 확인).
 
-```bash
-python scripts/export_coreml.py models/best.pt --imgsz 640
-python scripts/export_coreml.py models/best.pt --imgsz 640 --int8   # 비교용
+---
+
+## 모델 선택 — 실측 근거
+
+640px, CPU, ONNX Runtime 기준으로 직접 쟀다:
+
+| 모델 | 파일 | 단일스레드 | 4스레드 | COCO mAP50-95 |
+|---|---|---|---|---|
+| yolo26n | 10MB | 83ms | 47ms | 40.9 |
+| **yolo26s** | **38MB** | **254ms** | **126ms** | **48.6** ← 기본 |
+| yolo26m | 82MB | 827ms | 396ms | 53.1 |
+
+폰 브라우저의 WASM 은 여기서 2~5배 느리므로 **`s` 기준 폰에서 0.5~1.3초**다.
+사진을 올리고 결과를 보는 방식에는 충분하다.
+
+**실시간이 아니라서 `s` 를 쓸 수 있다.** 30fps 를 맞출 이유가 없으니 그 여유를
+정확도에 쓴다. `m` 은 82MB 라 첫 로딩이 부담스럽고 폰에서 2~4초까지 간다.
+
+---
+
+## 웹앱 — 브라우저에서 도는 이유
+
+| | |
+|---|---|
+| 서버 | 없음. Vercel 정적 호스팅 |
+| 비용 | 0원, 영구 |
+| 사진 | **기기 밖으로 안 나감** |
+| 기기 | 폰·태블릿·PC 같은 주소 |
+
+**후처리가 간단하다.** YOLO26 은 NMS-free(end2end) 라 출력이 이미 최종 박스다 —
+보통 브라우저 추론에서 제일 골치 아픈 JS NMS 구현이 통째로 없다:
+
+```
+입력  images   [1, 3, 640, 640]  float32   (0~1 정규화, RGB, NCHW)
+출력  output0  [1, 300, 6]       float32
+      한 행 = [x1, y1, x2, y2, confidence, class]
 ```
 
-변환 후 **Xcode 에서 .mlpackage 를 열고 Performance 탭**을 확인한다.
-CPU 로 떨어지는 레이어가 있으면 ARKit 과 같이 못 쓴다.
+브라우저가 할 일은 셋뿐이다: 사진을 640 으로 레터박스 리사이즈 → `conf` 로 거르기 →
+좌표를 원본 크기로 되돌리기.
 
-**YOLO26 은 NMS-free 다.** 변환 시 `nms=True` 가 자동으로 꺼지는데 정상이다 —
-모델이 이미 최종 박스를 내므로 Swift 쪽에서 NMS 를 따로 구현할 필요가 없다.
+**아이폰 사진(12MP)은 반드시 640 으로 줄여서 넣는다.** 원본 그대로 텐서를 만들면
+iOS Safari 가 메모리로 죽는다. 모델 입력이 640 이라 정확도 손실은 없다.
 
 ---
 
@@ -146,8 +185,7 @@ iPhone LiDAR 는 프레임당 실제 레이저 점이 576 개뿐이고 256×192 
 → 겹침을 기하로 분리하는 것은 성립하지 않는다. 영상으로 찾는 게 맞다.
 
 **AGPL 은 문제없다.**
-Ultralytics YOLO 는 AGPL-3.0 이고 이 저장소는 공개다. App Store 심사와 GPL 계열의
-충돌은 알려진 마찰 지점이지만 **TestFlight 배포에는 해당 없다.**
+Ultralytics YOLO 는 AGPL-3.0 이고 이 저장소는 공개다.
 
 ---
 
@@ -156,13 +194,14 @@ Ultralytics YOLO 는 AGPL-3.0 이고 이 저장소는 공개다. App Store 심�
 ```
 scripts/
   check_dataset.py    학습 전 위생 검사 — 네거티브 비율·장소 누수
-  train.py            Ultralytics 전이학습
+  train.py            Ultralytics 전이학습 (기본 yolo26s)
   predict_test.py     결과를 눈으로 확인
-  export_coreml.py    .pt -> .mlpackage
+  export_onnx.py      .pt -> .onnx (웹앱용)
 docs/
   labeling-guide.md   라벨링·촬영 규칙
 data/                 데이터셋 (gitignore — 현장 사진은 커밋하지 않는다)
-models/               변환 산출물 (gitignore — 용량이 크다)
+models/               변환 산출물
+web/                  웹앱 (아직 없음)
 ```
 
 ## 라이선스

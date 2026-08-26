@@ -5,9 +5,8 @@ runs/
 # 5MB 안팎이라 git 에 넣어도 무겁지 않다.
 !models/*.pt
 
-# 변환 산출물 — 용량이 크다. 릴리스로 배포한다
-models/*.mlpackage/
-models/*.mlmodel
+# 변환 산출물. .onnx 는 웹앱이 쓰므로 커밋한다(수십 MB, git 에 넣을 만하다).
+# 학습 산출물 .pt 도 models/ 안의 것은 커밋한다 (위 예외 참조).
 
 # 데이터셋 — 현장 사진은 커밋하지 않는다
 data/images/
