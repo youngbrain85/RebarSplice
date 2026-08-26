@@ -103,10 +103,10 @@ def main() -> None:
 
     print("\n" + "=" * 60)
     print(f"저장 위치: {ROOT / 'runs' / a.name}")
-    print("\n  best.pt 로 Core ML 변환:")
-    print(f"    python scripts/export_coreml.py runs/{a.name}/weights/best.pt")
-    print("\n  검증셋에서 눈으로 확인:")
-    print(f"    python scripts/predict_test.py runs/{a.name}/weights/best.pt <이미지폴더>")
+    print("\n  1) 검증셋에서 눈으로 확인 — 숫자보다 이게 중요하다:")
+    print(f"    python scripts/predict_test.py runs/{a.name}/weights/best.pt data/valid/images --conf 0.15")
+    print("\n  2) 웹앱용 ONNX 로 변환:")
+    print(f"    python scripts/export_onnx.py runs/{a.name}/weights/best.pt --imgsz {a.imgsz}")
     print("\n★ mAP50 을 본다. mAP50-95 는 보지 않는다.")
     print("  100장 기준 mAP50 0.3~0.5 면 정상이다. 0 에 가까우면 라벨 정의를 다시 본다.")
 

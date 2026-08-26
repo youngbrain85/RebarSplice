@@ -62,8 +62,10 @@ def resolve_split(root: Path, cfg_path: Path, rel: str) -> Path | None:
     """split 경로를 여러 관례로 시도한다. 못 찾으면 None.
 
     Roboflow 내보내기는 `train: ../train/images` 처럼 `../` 로 시작하는 경로를 준다
-    (YOLOv5 시절 관례). 그걸 그대로 풀면 데이터셋 폴더 **밖**을 가리킨다.
-    사용자가 yaml 을 손보게 하는 대신 여기서 알아서 찾는다.
+    (YOLOv5 시절 관례). **Ultralytics 도 똑같은 폴백을 갖고 있으므로**
+    (`ultralytics/data/utils.py:606` — 경로가 없으면 `../` 를 떼고 다시 시도한다)
+    그대로 둬도 학습은 된다. 여기서 같은 관례를 흉내내는 건 검사기가 학습기와
+    **같은 파일**을 보게 하려는 것뿐이다. (2026-08-25 실측 확인)
     """
     base = cfg_path.parent
     stripped = rel.lstrip("./").lstrip("../") if rel.startswith(("./", "../")) else rel
@@ -118,8 +120,6 @@ def main() -> None:
 
     total_imgs = total_pos = total_boxes = 0
 
-    rewrote: list[str] = []
-
     for split in ("train", "val"):
         rel = cfg.get(split) or (cfg.get("valid") if split == "val" else None)
         if not rel:
@@ -129,8 +129,6 @@ def main() -> None:
         if d is None:
             problems.append(f"{split} 경로가 없다: {root / rel}")
             continue
-        if d != (root / rel):
-            rewrote.append(split)
 
         imgs, pos, boxes, sessions = scan(d)
         neg = len(imgs) - pos
@@ -140,7 +138,8 @@ def main() -> None:
         total_boxes += boxes
         all_sessions[split] = sessions
 
-        print(f"[{split}]  사진 {len(imgs)}장  ·  박스 있는 사진 {pos}장  ·  박스 {boxes}개")
+        print(f"[{split}]  {d}")
+        print(f"         사진 {len(imgs)}장  ·  박스 있는 사진 {pos}장  ·  박스 {boxes}개")
         print(f"         네거티브 {neg}장 ({ratio:.0f}%)  ·  장소 {len(sessions)}곳 {dict(sessions)}")
         if imgs and boxes:
             print(f"         사진당 평균 박스 {boxes / max(pos, 1):.1f}개")
@@ -184,19 +183,6 @@ def main() -> None:
                 "같은 이음부를 찍은 사진이 양쪽에 들어가면 검증 점수가 가짜로 높게 나온다 — "
                 "장소 단위로 나눠라"
             )
-
-    # --- 0. yaml 경로 관례 (Roboflow 내보내기) ---
-    if rewrote:
-        problems.append(
-            f"dataset.yaml 의 경로가 Roboflow 관례({', '.join(rewrote)}: '../...')다. "
-            "이 스크립트는 알아서 찾았지만 **학습은 실패할 수 있다** — Ultralytics 는 같은 폴백을 "
-            "하지 않는다. yaml 을 아래처럼 고쳐라:\n"
-            f"      path: {root}\n"
-            "      train: train/images\n"
-            "      val: valid/images\n"
-            "      names:\n"
-            "        0: lap_splice"
-        )
 
     # --- 결과 ---
     print("=" * 60)

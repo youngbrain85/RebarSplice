@@ -26,3 +26,9 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# 실제 사진으로 학습한 모델이 나오기 전까지 models/ 는 비워 둔다.
+# 웹앱에 넣을 모델이 확정되면 그때 이 줄을 지우고 커밋한다.
+models/*.onnx
+models/*.pt
+!models/.gitkeep

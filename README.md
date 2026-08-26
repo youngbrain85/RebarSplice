@@ -26,6 +26,15 @@ HuggingFace · AI-Hub 를 전수 검색한 결과 0건이다(2026-08 확인). �
 
 ## 순서
 
+상세 절차는 두 문서에 있다:
+
+| 문서 | 내용 |
+|---|---|
+| **[docs/labeling-guide.md](docs/labeling-guide.md)** | Roboflow 계정부터 내보내기까지 — 라벨링 전 과정 |
+| **[docs/training-guide.md](docs/training-guide.md)** | 설치부터 `.onnx` 까지 — 학습 전 과정 (소요 시간 실측) |
+
+아래는 요약이다.
+
 ### 1. 사진을 모은다
 
 `docs/labeling-guide.md` 참고. 요점 하나만 옮기면:
@@ -55,19 +64,9 @@ HuggingFace · AI-Hub 를 전수 검색한 결과 0건이다(2026-08 확인). �
 Ultralytics 는 v5 부터 v26 까지 라벨 형식이 같으므로 YOLOv8 로 내보내도 YOLO26 학습에
 그대로 쓴다. (v11 / v12 옵션이 있어도 나오는 파일은 동일하다.)
 
-압축을 `data/` 에 푼 뒤 **`data.yaml` 의 경로를 고친다.** Roboflow 는
-`train: ../train/images` 처럼 `../` 로 시작하는 경로를 주는데(YOLOv5 시절 관례) 그대로 두면
-학습이 실패한다:
-
-```yaml
-path: D:/Projects/RebarSplice/data      # 압축을 푼 곳의 절대경로
-train: train/images
-val: valid/images
-names:
-  0: lap_splice
-```
-
-`check_dataset.py` 가 이걸 자동으로 잡아내고 고칠 내용을 절대경로까지 채워서 알려준다.
+압축을 `data/` 에 푼다. **`data.yaml` 은 고치지 않아도 된다** — 안에 `../train/images`
+처럼 `../` 로 시작하는 경로가 들어 있지만 Ultralytics 가 알아서 처리한다
+(`ultralytics/data/utils.py:606` — 경로가 없으면 `../` 를 떼고 다시 찾는다. 2026-08-25 실측 확인).
 
 ### 3. 데이터를 검사한다
 
@@ -79,6 +78,9 @@ names:
 문제가 있으면 고치고 다시 돌린다. 학습은 그다음이다.
 
 ### 4. 학습한다
+
+실측: 100장 · yolo26s · 640px · RTX 2060 SUPER 기준 **30 epoch 105초**,
+기본값 200 epoch 이면 **약 12분**.
 
 ```bash
 python -m venv .venv
