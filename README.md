@@ -13,11 +13,11 @@
 
 | | |
 |---|---|
-| 클래스 | `lap_splice` 1개 |
-| 라벨 | 축정렬 바운딩박스 |
+| 데이터 | 현장 영상 6개 → 프레임 190 → **타일 309장** (720²·1080²), 2026-08-28 라벨 완료 |
+| 클래스 | **2개** — `lap_splice`(1,068) + `rebar`(2,542). 폴리곤 라벨 (detect 학습이 자동으로 박스 변환) |
+| 분할 | **영상 단위** — 같은 영상의 프레임은 사실상 중복이라 무작위 분할 금지. `scripts/prepare_dataset.py` |
 | 모델 | **yolo26s**, 입력 640 |
-| 배포 | 웹앱 — 브라우저에서 추론(ONNX Runtime Web), 서버 없음 |
-| 목표 | mAP50 **0.3~0.5** (100장 기준). 0 에 가까우면 라벨 정의를 다시 본다 |
+| 배포 | 웹앱(`web/`) — 브라우저에서 추론(ONNX Runtime Web), 서버 없음 |
 
 **철근 이음부 공개 데이터셋은 존재하지 않는다.** Roboflow Universe · Kaggle ·
 HuggingFace · AI-Hub 를 전수 검색한 결과 0건이다(2026-08 확인). 처음부터 만들어야 한다.
@@ -67,6 +67,18 @@ Ultralytics 는 v5 부터 v26 까지 라벨 형식이 같으므로 YOLOv8 로 �
 압축을 `data/` 에 푼다. **`data.yaml` 은 고치지 않아도 된다** — 안에 `../train/images`
 처럼 `../` 로 시작하는 경로가 들어 있지만 Ultralytics 가 알아서 처리한다
 (`ultralytics/data/utils.py:606` — 경로가 없으면 `../` 를 떼고 다시 찾는다. 2026-08-25 실측 확인).
+
+### 2.5 실데이터는 prepare_dataset 으로 나눈다
+
+라벨 데이터가 영상에서 뽑은 타일(`IMG_0328_..._frame119_...jpg`)이고 전부 train/ 에
+들어 있다면 — 지금 실데이터가 그렇다 — **영상 단위**로 분할해야 한다:
+
+```bash
+.venv\Scripts\python scripts\prepare_dataset.py "D:/Projects/LH/Detection/rebar lapping.yolov11"
+```
+
+`data/train`·`data/valid`·`data/dataset.yaml` 이 만들어진다. 같은 영상의 프레임이
+학습·검증에 나뉘면 검증 점수가 가짜로 높아지므로 무작위 분할은 안 된다.
 
 ### 3. 데이터를 검사한다
 
@@ -140,7 +152,25 @@ python -m venv .venv
 
 ---
 
-## 웹앱 — 브라우저에서 도는 이유
+## 웹앱 (`web/`) — 구현됨
+
+```bash
+python scripts/serve_web.py            # http://localhost:8377
+```
+
+`python -m http.server` 를 쓰면 안 된다 — Windows 레지스트리의 .js=text/plain 때문에
+ES 모듈 로딩이 거부된다(실측). `serve_web.py` 가 MIME 과 COOP/COEP(멀티스레드용)를
+챙긴다. 배포는 `web/vercel.json` 이 같은 헤더를 준다.
+
+- 좌표 수학(레터박스·타일 계획·병합)은 `web/infer.js` — 순수 함수, `node --test web/infer.test.mjs` 로 12케이스 검증
+- **타일 추론**: 학습 데이터가 720~1080px 타일이라, 큰 사진은 960px 타일(겹침 25%)로
+  잘라 돌리고 겹침 구간 중복은 클래스별 IoU 0.5 로 병합한다. 4K 사진을 통째로 640 에
+  넣으면 철근이 학습 분포보다 가늘어져 못 잡는다
+- 신뢰도 슬라이더는 **다시 추론하지 않는다** — 0.05 까지 받아 두고 그리기만 거른다
+- 모델 파일은 `web/models/best.onnx` (gitignore — 재학습마다 수십 MB 를 git 에 쌓지
+  않는다. 배포 시 로컬 파일이 그대로 올라간다)
+
+### 브라우저에서 도는 이유
 
 | | |
 |---|---|
@@ -195,15 +225,21 @@ Ultralytics YOLO 는 AGPL-3.0 이고 이 저장소는 공개다.
 
 ```
 scripts/
-  check_dataset.py    학습 전 위생 검사 — 네거티브 비율·장소 누수
+  prepare_dataset.py  Roboflow 내보내기를 영상 단위로 분할 -> data/
+  check_dataset.py    학습 전 위생 검사 — 네거티브·분할 누수
   train.py            Ultralytics 전이학습 (기본 yolo26s)
   predict_test.py     결과를 눈으로 확인
   export_onnx.py      .pt -> .onnx (웹앱용)
+  serve_web.py        web/ 개발 서버 (MIME + COOP/COEP)
 docs/
-  labeling-guide.md   라벨링·촬영 규칙
+  labeling-guide.md   Roboflow 라벨링 절차
+  training-guide.md   설치부터 .onnx 까지 (소요 시간 실측)
 data/                 데이터셋 (gitignore — 현장 사진은 커밋하지 않는다)
-models/               변환 산출물
-web/                  웹앱 (아직 없음)
+web/
+  index.html, app.js  업로드 -> 타일 추론 -> 박스 표시
+  infer.js(.test.mjs) 좌표 수학 — 단위테스트 12케이스
+  vendor/ort/         ONNX Runtime Web 1.22 (vendored)
+  models/best.onnx    학습된 모델 (gitignore)
 ```
 
 ## 라이선스

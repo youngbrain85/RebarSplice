@@ -1,34 +1,32 @@
-# 학습 산출물
+# ── 학습 산출물 ──────────────────────────────────────────────
 runs/
 *.pt
-# 단 models/ 안의 가중치는 커밋한다 — CoreML 변환 워크플로가 저장소에서 읽어간다.
-# 5MB 안팎이라 git 에 넣어도 무겁지 않다.
-!models/*.pt
-
-# 변환 산출물. models/ 안의 .onnx 만 커밋한다 — 웹앱이 쓴다.
-# 저장소 루트의 .onnx / .pt 는 사전학습·벤치마크용 임시 파일이므로 제외한다.
+# 루트의 사전학습·벤치마크 임시 .onnx
 /*.onnx
-# 학습 산출물 .pt 도 models/ 안의 것은 커밋한다 (위 예외 참조).
 
-# 데이터셋 — 현장 사진은 커밋하지 않는다
-data/images/
-data/labels/
-data/dataset.yaml
-data/*.zip
+# ── 데이터셋 — 현장 사진·라벨은 절대 커밋하지 않는다 ─────────
+# prepare_dataset.py 가 data/train, data/valid 를 만든다 (2026-08-28 실배치).
+data/*
+!data/.gitkeep
+!data/dataset.yaml.example
 
-# Python
+# ── 모델 ────────────────────────────────────────────────────
+# 학습된 가중치는 git 에 넣지 않는다 — 재학습마다 수십 MB 가 쌓인다.
+# 웹 배포는 로컬의 web/models/best.onnx 를 그대로 올린다 (README 참조).
+models/*
+!models/.gitkeep
+web/models/
+
+# ── 웹 임시 파일 ────────────────────────────────────────────
+web/__test.jpg
+
+# ── Python ──────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 *.egg-info/
 
-# OS
+# ── OS ──────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-
-# 실제 사진으로 학습한 모델이 나오기 전까지 models/ 는 비워 둔다.
-# 웹앱에 넣을 모델이 확정되면 그때 이 줄을 지우고 커밋한다.
-models/*.onnx
-models/*.pt
-!models/.gitkeep

@@ -48,13 +48,22 @@ def label_path_for(img: Path) -> Path:
 
 
 def session_of(img: Path) -> str | None:
-    """파일명 첫 토큰을 촬영 장소로 본다. 없으면 None."""
+    """파일명에서 촬영 단위(장소 또는 원본 영상)를 읽는다. 없으면 None.
+
+    - siteA_001.jpg            -> siteA
+    - IMG_0328_frame119_.jpg   -> IMG_0328  (영상 ID — 첫 토큰 IMG 만으로는
+      전부 같은 값이 되므로, 알파벳+숫자 두 토큰을 묶는다)
+    """
     stem = img.stem
     for sep in ("_", "-"):
         if sep in stem:
-            head = stem.split(sep)[0]
-            # 순수 숫자면 장소명이 아니라 일련번호로 본다
-            return None if head.isdigit() else head
+            parts = stem.split(sep)
+            head = parts[0]
+            if head.isdigit():
+                return None  # 일련번호
+            if head.isalpha() and len(parts) > 1 and parts[1].isdigit():
+                return f"{head}{sep}{parts[1]}"  # IMG_0328 류
+            return head
     return None
 
 
@@ -149,13 +158,23 @@ def main() -> None:
             problems.append(f"{split} 에 이미지가 없다")
 
     # --- 1. 네거티브 비율 (전체 기준) ---
+    # 클래스가 1개뿐이면 네거티브가 없을 때 모델이 '철근=이음'으로 학습한다 — [문제].
+    # 클래스가 2개 이상(예: lap_splice + rebar)이면 배경 클래스가 그 역할을
+    # 대신하므로 [경고]로 낮춘다. 실데이터(2026-08-28)가 이 경우다.
+    names = cfg.get("names") or {}
+    n_classes = len(names)
     if total_imgs:
         neg_all = total_imgs - total_pos
         r = neg_all / total_imgs * 100
-        if r < 10:
+        if r < 10 and n_classes <= 1:
             problems.append(
                 f"네거티브가 {r:.0f}% 뿐이다 (권장 20~30%). "
                 "이음 없는 배근 사진을 박스 0개로 넣어라 — 안 넣으면 모델이 '철근=이음'으로 학습한다"
+            )
+        elif r < 10:
+            warnings.append(
+                f"네거티브 {r:.0f}% — 클래스가 {n_classes}개라 배경 클래스가 구분을 대신 학습시키지만, "
+                "철근이 아예 없는 장면(거푸집·바닥만)도 몇 장 넣으면 오검출이 준다"
             )
         elif r < 20:
             warnings.append(f"네거티브 {r:.0f}% — 권장 20~30% 보다 적다")
