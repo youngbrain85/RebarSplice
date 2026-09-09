@@ -7,9 +7,10 @@
 
 | | |
 |---|---|
-| 모델 | YOLO26-l, 입력 640 — lap_splice **mAP50 0.861** (P 0.872 / R 0.818) |
+| 모델 | YOLO26-l, 입력 640 — lap_splice **mAP50 0.861** (P 0.868 / R 0.818) |
 | 데이터셋 | [Roboflow Universe — rebar-lapping](https://universe.roboflow.com/hee-jun-yang-endorphiny/rebar-lapping/dataset/dataset) (타일 309장, `lap_splice` + `rebar` 2클래스) |
 | 상세 | [테스트 보고서 (PDF)](docs/test-report-2026-08-29.pdf) |
+| 학습 기록 | [실행 산출물 · 확정 하이퍼파라미터](docs/training-runs.md) |
 
 ---
 
