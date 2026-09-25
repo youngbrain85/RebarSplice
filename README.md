@@ -1,77 +1,77 @@
 # RebarSplice
 
-건설현장 배근 사진에서 철근 **겹침이음(lap splice)** 을 자동 검출하는 웹앱.
+A web app that automatically detects rebar **lap splices** in photos of rebar placement taken on construction sites.
 
-**▶ https://rebarsplice.vercel.app** — 사진을 올리면 브라우저 안에서 검출한다.
-서버 전송 없음(추론은 ONNX Runtime Web, 기기 안에서 실행).
+**▶ https://rebarsplice.vercel.app** — upload a photo and detection runs inside the browser.
+Nothing is sent to a server (inference runs on the device with ONNX Runtime Web).
 
 | | |
 |---|---|
-| 모델 | YOLO26-l, 입력 640 — lap_splice **mAP50 0.861** (P 0.868 / R 0.818) |
-| 데이터셋 | [Roboflow Universe — rebar-lapping](https://universe.roboflow.com/hee-jun-yang-endorphiny/rebar-lapping/dataset/dataset) (타일 309장, `lap_splice` + `rebar` 2클래스) |
-| 상세 | [테스트 보고서 (PDF)](docs/test-report-2026-08-29.pdf) |
-| 학습 기록 | [실행 산출물 · 확정 하이퍼파라미터](docs/training-runs.md) |
+| Model | YOLO26-l, 640 input — lap_splice **mAP50 0.861** (P 0.868 / R 0.818) |
+| Dataset | [Roboflow Universe — rebar-lapping](https://universe.roboflow.com/hee-jun-yang-endorphiny/rebar-lapping/dataset/dataset) (309 tiles, two classes: `lap_splice` + `rebar`) |
+| Details | [Test report (PDF)](docs/test-report-2026-08-29.pdf) |
+| Training record | [Run outputs and final hyperparameters](docs/training-runs.md) |
 
 ---
 
-## 실행
+## Running
 
-### 웹앱 (로컬)
+### Web app (local)
 
 ```bash
 python scripts/serve_web.py        # → http://localhost:8377
 ```
 
-모델 파일 `web/models/best.onnx` 는 저장소에 없다(용량). 아래 학습 절차로 직접
-만들거나, 배포된 웹앱을 그대로 쓰면 된다.
+The model file `web/models/best.onnx` is not in the repository (file size). Build it yourself with the
+training procedure below, or use the deployed web app as it is.
 
-### 학습 → 모델 만들기
+### Training → building the model
 
-요구사항: Python 3.9+, NVIDIA GPU 권장(CPU도 되지만 느리다).
+Requirements: Python 3.9+, an NVIDIA GPU is recommended (a CPU also works, but slowly).
 
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 .venv/Scripts/python -m pip install -r requirements.txt
 
-# 1. 데이터셋(위 링크)을 YOLOv8 포맷으로 받아 영상 단위로 학습/검증 분할
-.venv/Scripts/python scripts/prepare_dataset.py <Roboflow 내보내기 폴더>
+# 1. Download the dataset (link above) in YOLOv8 format and split it into training/validation sets by source video
+.venv/Scripts/python scripts/prepare_dataset.py <Roboflow export folder>
 
-# 2. 검사 → 학습 → 확인 → 변환
+# 2. Check → train → verify → convert
 .venv/Scripts/python scripts/check_dataset.py data/dataset.yaml
 .venv/Scripts/python scripts/train.py --data data/dataset.yaml --model yolo26l.pt
 .venv/Scripts/python scripts/predict_test.py runs/splice/weights/best.pt data/valid/images --conf 0.15
 .venv/Scripts/python scripts/export_onnx.py runs/splice/weights/best.pt --imgsz 640
 
-# 3. 웹앱에 넣기
+# 3. Add it to the web app
 cp models/best.onnx web/models/best.onnx
 ```
 
-참고: RTX 2060 SUPER 기준 학습 약 1시간(l 모델, 200 epoch).
+Note: training takes about 1 hour on an RTX 2060 SUPER (l model, 200 epochs).
 
-### 웹앱 배포
+### Deploying the web app
 
 ```bash
 cd web && npx vercel deploy --prod --yes
 ```
 
-### 테스트
+### Tests
 
 ```bash
-node --test web/infer.test.mjs     # 추론 좌표 수학 12케이스
+node --test web/infer.test.mjs     # 12 cases for the inference coordinate math
 ```
 
 ---
 
-## 구조
+## Structure
 
 ```
-scripts/   데이터 분할·검사·학습·ONNX 변환·개발서버
-web/       웹앱 (index.html · app.js · infer.js + 단위테스트)
-docs/      상세 문서 · 테스트 보고서
+scripts/   Dataset splitting, checking, training, ONNX conversion, development server
+web/       Web app (index.html · app.js · infer.js + unit tests)
+docs/      Detailed documents · test report
 ```
 
-## 라이선스
+## License
 
-코드는 MIT. 학습에 Ultralytics(AGPL-3.0)를 쓰므로 그 코드로 만든 **가중치를
-배포할 때는 AGPL 이 따라온다.** 데이터셋은 CC BY 4.0.
+The code is MIT-licensed. Training uses Ultralytics (AGPL-3.0), so **distributing weights produced with that
+code carries the AGPL with it.** The dataset is CC BY 4.0.
