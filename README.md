@@ -14,6 +14,9 @@ Nothing is sent to a server (inference runs on the device with ONNX Runtime Web)
 
 ---
 
+![Detection result on a validation photo](docs/images/detection-example.jpg)
+*Detection on a validation photo from a site video that was not used in training. The tied lap splice is detected as `lap_splice` and single bars as `rebar`.*
+
 ## Running
 
 ### Web app (local)
